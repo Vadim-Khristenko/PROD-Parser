@@ -257,12 +257,10 @@ body {
   gap: var(--sp-4);
   position: sticky;
   top: calc(58px + var(--sp-6));
-  height: fit-content;
+  height: calc(100vh - 80px);
   max-height: calc(100vh - 80px);
-  overflow-y: auto;
-  scrollbar-width: none;
+  overflow: hidden;
 }
-.sidebar::-webkit-scrollbar { display: none; }
 
 .main-stack {
   display: flex;
@@ -327,6 +325,16 @@ body {
   text-transform: uppercase;
   color: var(--text-soft);
   margin: 0;
+}
+
+.sidebar .sidebar-routing,
+.sidebar .sidebar-persona {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
 }
 
 /* ════════════════════════════════════════════════
@@ -416,6 +424,16 @@ select:disabled { opacity: 0.5; cursor: not-allowed; }
    PERSONA CARD
    ════════════════════════════════════════════════ */
 .sidebar-persona { display: flex; flex-direction: column; gap: var(--sp-4); }
+
+.sidebar-persona .persona-traits,
+.sidebar-persona .interest-chips,
+.sidebar-persona .persona-phrases {
+  max-height: 8.5rem;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface-3) transparent;
+  padding-right: 2px;
+}
 
 .persona-score-row {
   display: flex;
@@ -583,12 +601,12 @@ select:disabled { opacity: 0.5; cursor: not-allowed; }
    ════════════════════════════════════════════════ */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(165px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr));
   gap: var(--sp-3);
 }
 
 .kpi-grid--compact {
-  grid-template-columns: repeat(auto-fill, minmax(min(145px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(132px, 100%), 1fr));
 }
 
 .kpi-card {
@@ -1218,7 +1236,11 @@ mark.hl {
    ════════════════════════════════════════════════ */
 @media (max-width: 1200px) {
   .shell { grid-template-columns: 1fr; }
-  .sidebar { position: relative; top: 0; max-height: none; overflow-y: visible; }
+  .sidebar { position: relative; top: 0; height: auto; max-height: none; overflow: visible; }
+  .sidebar .sidebar-routing,
+  .sidebar .sidebar-persona {
+    overflow: visible;
+  }
   .chart-row--3 { grid-template-columns: 1fr 1fr; }
 }
 

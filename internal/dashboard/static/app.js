@@ -4,8 +4,8 @@
 //  CONSTANTS
 // ═══════════════════════════════════════════════════════════════
 
-const WEEKDAY_LABELS  = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-const MONTH_LABELS    = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const WEEKDAY_LABELS  = ["Вс","Пн","Вт","Ср","Чт","Пт","Сб"];
+const MONTH_LABELS    = ["Янв","Фев","Мар","Апр","Май","Июн","Июл","Авг","Сен","Окт","Ноя","Дек"];
 const PAGE_SIZE       = 40;   // messages rendered per batch
 const SEARCH_DEBOUNCE = 180;  // ms
 
@@ -30,6 +30,82 @@ const INTEREST_PALETTE = {
   travel_geography:            "sage",
   finance_crypto:              "gold",
   education_learning:          "sky",
+  design_creativity:           "rose",
+  devrel_content:              "sky",
+  career_hiring:               "gold",
+  legal_compliance:            "sage",
+  automation_productivity:     "gold",
+};
+
+const ROLE_LABELS = {
+  key_contributor: "Ключевой участник",
+  expert_signal: "Экспертный голос",
+  core_voice: "Ядро обсуждений",
+  discussion_driver: "Драйвер дискуссий",
+  silent_observer: "Тихий наблюдатель",
+  participant: "Участник",
+};
+
+const TONE_LABELS = {
+  aggressive: "Агрессивный",
+  sharp: "Резкий",
+  supportive_or_neutral: "Поддерживающий/нейтральный",
+};
+
+const TRAIT_LABELS = {
+  dominant_presence: "Доминирующее присутствие",
+  consistently_active: "Стабильно активный",
+  high_activity: "Высокая активность",
+  steady_activity: "Ровная активность",
+  low_activity: "Низкая активность",
+  high_conflict: "Высокая конфликтность",
+  occasionally_conflict: "Эпизодическая конфликтность",
+  calm: "Спокойный стиль",
+};
+
+const TRIGGER_LABELS = {
+  conflict_topics: "Конфликтные темы",
+  direct_replies: "Частые прямые ответы",
+  insufficient_signal: "Недостаточно сигнала",
+};
+
+const INTEREST_LABELS = {
+  software_engineering: "Разработка ПО",
+  ai_ml_llm: "ИИ / ML / LLM",
+  web_frontend: "Веб-фронтенд",
+  security_privacy: "Безопасность и приватность",
+  data_engineering_analytics: "Data engineering и аналитика",
+  open_source_community: "Open Source и комьюнити",
+  product_management: "Продуктовый менеджмент",
+  project_delivery: "Доставка проекта",
+  startup_business: "Стартапы и бизнес",
+  communication_coordination: "Коммуникация и координация",
+  humor_memes: "Юмор и мемы",
+  philosophy_thinking: "Философия и мышление",
+  ops_observability: "Ops и наблюдаемость",
+  cloud_platforms: "Облачные платформы",
+  health_wellness: "Здоровье и самочувствие",
+  gaming: "Игры",
+  media_entertainment: "Медиа и развлечения",
+  travel_geography: "Путешествия и география",
+  finance_crypto: "Финансы и крипто",
+  education_learning: "Обучение и развитие",
+  design_creativity: "Дизайн и креатив",
+  devrel_content: "Документация и контент",
+  career_hiring: "Карьера и найм",
+  legal_compliance: "Юридическое и комплаенс",
+  automation_productivity: "Автоматизация и продуктивность",
+};
+
+const MEDIA_TYPE_LABELS = {
+  photo: "Фото",
+  video: "Видео",
+  voice: "Голосовое",
+  audio: "Аудио",
+  sticker: "Стикер",
+  gif: "GIF",
+  document: "Документ",
+  poll: "Опрос",
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -39,6 +115,7 @@ const INTEREST_PALETTE = {
 const state = {
   chats:        [],
   users:        [],
+  userDirectory: new Map(),
   snapshot:     null,
   sourceLabel:  "",
   apiAvailable: true,
@@ -111,19 +188,19 @@ function bindEvents() {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      setStatus("reading json", "busy");
+      setStatus("чтение JSON", "busy");
       const text = await file.text();
       const parsed = JSON.parse(text);
-      if (!parsed || typeof parsed !== "object") throw new Error("Not a valid snapshot.");
+      if (!parsed || typeof parsed !== "object") throw new Error("Некорректный snapshot.");
       state.snapshot = parsed;
-      state.sourceLabel = `file:${file.name}`;
+      state.sourceLabel = `файл:${file.name}`;
       renderSnapshot();
-      setStatus("manual snapshot loaded", "ok");
-      els.sourceHint.textContent = "Manual mode active. Refresh Sources to switch back.";
+      setStatus("снимок загружен вручную", "ok");
+      els.sourceHint.textContent = "Включён ручной режим. Нажмите «Обновить», чтобы вернуться к API.";
     } catch (err) {
       console.error(err);
-      setStatus("invalid json", "warn");
-      els.sourceHint.textContent = "Could not parse JSON. Load a valid user snapshot.";
+      setStatus("ошибка JSON", "warn");
+      els.sourceHint.textContent = "Не удалось прочитать JSON. Загрузите корректный снимок пользователя.";
     } finally {
       e.target.value = "";
     }
@@ -171,11 +248,11 @@ function bindEvents() {
 }
 
 function renderInitialState() {
-  setStatus("idle", "idle");
+  setStatus("ожидание", "idle");
   const lists = [els.kpiGrid, els.behaviorGrid, els.hourChart, els.weekdayChart,
                  els.monthChart, els.topWords, els.smartWords,
                  els.incomingRelations, els.outgoingRelations, els.messageFeed];
-  lists.forEach(el => renderEmpty(el, "No data loaded yet."));
+  lists.forEach(el => renderEmpty(el, "Данные пока не загружены."));
   clearSvg(els.dailyTrend);
 }
 
@@ -184,7 +261,7 @@ function renderInitialState() {
 // ═══════════════════════════════════════════════════════════════
 
 async function refreshSources() {
-  setStatus("scanning exports", "busy");
+  setStatus("сканирую exports", "busy");
   state.apiAvailable = true;
   try {
     const chats = await fetchJSON("/api/chats");
@@ -192,26 +269,28 @@ async function refreshSources() {
     populateChatSelect();
     if (!state.chats.length) {
       state.users = [];
+      state.userDirectory = new Map();
       populateUserSelect();
       els.chatUsersCount.textContent = "—";
       els.bestActivity.textContent = "—";
-      els.sourceHint.textContent = "No snapshots found. Run user-snapshot and refresh.";
-      setStatus("no exports", "warn");
+      els.sourceHint.textContent = "Снимки не найдены. Запустите user-snapshot и обновите источники.";
+      setStatus("нет exports", "warn");
       return;
     }
     await loadUsersForSelectedChat();
-    setStatus(`${state.chats.length} chat${state.chats.length !== 1 ? "s" : ""}`, "ok");
+    setStatus(`${state.chats.length} чатов`, "ok");
   } catch (err) {
     console.error(err);
     state.apiAvailable = false;
     state.chats = [];
     state.users = [];
+    state.userDirectory = new Map();
     populateChatSelect();
     populateUserSelect();
     els.chatUsersCount.textContent = "—";
     els.bestActivity.textContent = "—";
-    els.sourceHint.textContent = "API offline. Use manual JSON upload.";
-    setStatus("api offline", "warn");
+    els.sourceHint.textContent = "API недоступен. Используйте ручную загрузку JSON.";
+    setStatus("api недоступен", "warn");
   }
 }
 
@@ -219,13 +298,13 @@ function populateChatSelect() {
   const prev = els.chatSelect.value;
   els.chatSelect.innerHTML = "";
   if (!state.chats.length) {
-    appendOption(els.chatSelect, "", "No source detected");
+    appendOption(els.chatSelect, "", "Источники не найдены");
     els.chatSelect.disabled = true;
     return;
   }
   for (const chat of state.chats) {
     const val = `${chat.account_id}|${chat.chat_id}`;
-    appendOption(els.chatSelect, val, `${chat.account_id} / ${chat.chat_id} (${chat.users_count} users)`);
+    appendOption(els.chatSelect, val, `${chat.account_id} / ${chat.chat_id} (${chat.users_count} пользователей)`);
   }
   els.chatSelect.disabled = false;
   const hasPrev = state.chats.some(c => `${c.account_id}|${c.chat_id}` === prev);
@@ -234,22 +313,28 @@ function populateChatSelect() {
 
 async function loadUsersForSelectedChat() {
   const src = selectedSource();
-  if (!src) { state.users = []; populateUserSelect(); return; }
-  setStatus("loading users", "busy");
+  if (!src) {
+    state.users = [];
+    state.userDirectory = new Map();
+    populateUserSelect();
+    return;
+  }
+  setStatus("загружаю пользователей", "busy");
   const params = new URLSearchParams({ account: src.account, chat: String(src.chat) });
   const users = await fetchJSON(`/api/users?${params}`);
   state.users = Array.isArray(users) ? users : [];
+  rebuildUserDirectory();
   populateUserSelect();
   els.chatUsersCount.textContent = formatNum(state.users.length);
   const best = state.users.reduce((acc, u) => Math.max(acc, Number(u.activity_score) || 0), 0);
   els.bestActivity.textContent = best.toFixed(2);
   if (!state.users.length) {
-    els.sourceHint.textContent = "No user snapshots in this chat. Run user-snapshot first.";
-    setStatus("no users", "warn");
+    els.sourceHint.textContent = "В этом чате нет снимков пользователей. Сначала запустите user-snapshot.";
+    setStatus("пользователей нет", "warn");
   } else {
     const top = state.users[0];
-    els.sourceHint.textContent = `Top: ${displayUser(top)} · ${formatNum(top.messages_total)} msgs`;
-    setStatus(`${state.users.length} users`, "ok");
+    els.sourceHint.textContent = `Топ: ${displayUser(top)} · ${formatNum(top.messages_total)} сообщений`;
+    setStatus(`${state.users.length} пользователей`, "ok");
   }
 }
 
@@ -257,13 +342,13 @@ function populateUserSelect() {
   const prev = els.userSelect.value;
   els.userSelect.innerHTML = "";
   if (!state.users.length) {
-    appendOption(els.userSelect, "", "Choose chat first");
+    appendOption(els.userSelect, "", "Сначала выберите чат");
     els.userSelect.disabled = true;
     els.loadBtn.disabled = true;
     return;
   }
   for (const u of state.users) {
-    appendOption(els.userSelect, String(u.user_id), `${displayUser(u)} · ${formatNum(u.messages_total)} msgs`);
+    appendOption(els.userSelect, String(u.user_id), `${displayUser(u)} · ${formatNum(u.messages_total)} сообщений`);
   }
   els.userSelect.disabled = false;
   els.loadBtn.disabled = false;
@@ -275,17 +360,17 @@ async function loadSelectedSnapshot() {
   const src = selectedSource();
   const uid = parseInt(els.userSelect.value, 10);
   if (!src || !isFinite(uid) || uid <= 0) return;
-  setStatus("loading snapshot", "busy");
+  setStatus("загружаю снимок", "busy");
   const params = new URLSearchParams({ account: src.account, chat: String(src.chat), user_id: String(uid) });
   try {
     state.snapshot = await fetchJSON(`/api/user?${params}`);
     state.sourceLabel = `${src.account}/${src.chat}/user_${uid}`;
     renderSnapshot();
-    setStatus("snapshot ready", "ok");
+    setStatus("снимок готов", "ok");
   } catch (err) {
     console.error(err);
-    setStatus("snapshot failed", "warn");
-    els.sourceHint.textContent = "Failed to load snapshot. Check state directory.";
+    setStatus("ошибка снимка", "warn");
+    els.sourceHint.textContent = "Не удалось загрузить снимок. Проверьте директорию state.";
   }
 }
 
@@ -296,21 +381,20 @@ async function loadSelectedSnapshot() {
 function renderSnapshot() {
   if (!state.snapshot || typeof state.snapshot !== "object") return;
   const { profile = {}, stats = {}, persona = {} } = state.snapshot;
+  rebuildUserDirectory(profile, state.snapshot.recent_messages || []);
 
   const name = nonEmpty(profile.display_name, [
     [profile.first_name, profile.last_name].filter(Boolean).join(" "),
     profile.username ? `@${profile.username}` : "",
-    profile.user_id ? `user_${profile.user_id}` : "Unknown",
+    profile.user_id ? `user_${profile.user_id}` : "Неизвестный",
   ]);
 
   // Hero
   els.heroName.textContent = name;
-  els.heroEyebrow.textContent = profile.username ? `@${profile.username}` : "Operator Card";
+  els.heroEyebrow.textContent = profile.username ? `@${profile.username}` : "Карточка участника";
   els.heroMeta.textContent =
-    `Source: ${state.sourceLabel || "manual"} · ID: ${profile.user_id || "n/a"} · Generated: ${fmtDate(state.snapshot.generated_at)}`;
-  els.heroSummary.textContent = nonEmpty(persona.summary, [
-    "Snapshot loaded. Explore temporal activity, lexical behavior, social graph, and message stream.",
-  ]);
+    `Источник: ${state.sourceLabel || "ручной"} · ID: ${profile.user_id || "н/д"} · Сгенерировано: ${fmtDate(state.snapshot.generated_at)}`;
+  els.heroSummary.textContent = buildPersonaSummary(persona, stats);
   renderHeroBadges(persona, stats);
 
   // Sidebar persona
@@ -323,7 +407,7 @@ function renderSnapshot() {
   // Charts
   renderBarChart(els.hourChart, numArr(stats.messages_by_hour, 24), Array.from({length:24}, (_,i)=>String(i).padStart(2,"0")));
   const peakHour = argmax(numArr(stats.messages_by_hour, 24));
-  els.hourPeak.textContent = `peak ${String(peakHour).padStart(2,"0")}:00 · ${formatNum(stats.messages_by_hour?.[peakHour] ?? 0)}`;
+  els.hourPeak.textContent = `Пик ${String(peakHour).padStart(2,"0")}:00 · ${formatNum(stats.messages_by_hour?.[peakHour] ?? 0)} сообщений`;
 
   renderBarChart(els.weekdayChart, numArr(stats.messages_by_weekday, 7), WEEKDAY_LABELS);
   renderBarChart(els.monthChart,   numArr(stats.messages_by_month, 12),  MONTH_LABELS);
@@ -356,12 +440,15 @@ function renderSnapshot() {
 function renderHeroBadges(persona, stats) {
   els.heroBadges.innerHTML = "";
   const items = [];
-  if (persona.role)  items.push({ text: persona.role, cls: "badge--gold" });
-  if (persona.tone)  items.push({ text: persona.tone, cls: "badge--sky" });
-  if (Array.isArray(persona.traits)) persona.traits.slice(0, 3).forEach(t => items.push({ text: t, cls: "badge--sage" }));
+  if (persona.role)  items.push({ text: humanizeRole(persona.role), cls: "badge--gold" });
+  if (persona.tone)  items.push({ text: humanizeTone(persona.tone), cls: "badge--sky" });
+  if (Array.isArray(persona.traits)) {
+    persona.traits.slice(0, 3).forEach(t => items.push({ text: humanizeTrait(t), cls: "badge--sage" }));
+  }
+  buildActivityBadges(stats).forEach(tag => items.push(tag));
   if (isFinite(Number(stats.activity_score)))
-    items.push({ text: `activity ${Number(stats.activity_score).toFixed(2)}`, cls: "badge--rose" });
-  if (!items.length) items.push({ text: "profile loaded", cls: "" });
+    items.push({ text: `Активность ${Number(stats.activity_score).toFixed(2)}`, cls: "badge--rose" });
+  if (!items.length) items.push({ text: "Профиль загружен", cls: "" });
 
   items.forEach(({ text, cls }) => {
     const span = document.createElement("span");
@@ -384,13 +471,17 @@ function renderPersonaSidebar(persona, stats) {
   els.scoreRingFill.style.strokeDashoffset = (circ * (1 - score)).toFixed(2);
   els.scoreRingText.textContent = Math.round(score * 100);
 
-  els.personaRole.textContent = persona.role || "—";
-  els.personaTone.textContent = persona.tone || "—";
-  els.personaConf.textContent = `confidence: ${isFinite(Number(persona.confidence)) ? Number(persona.confidence).toFixed(2) : "—"}`;
+  els.personaRole.textContent = persona.role ? humanizeRole(persona.role) : "—";
+  els.personaTone.textContent = persona.tone ? humanizeTone(persona.tone) : "—";
+  els.personaConf.textContent = `уверенность: ${isFinite(Number(persona.confidence)) ? Number(persona.confidence).toFixed(2) : "—"}`;
 
   // Traits
   els.personaTraits.innerHTML = "";
-  (persona.traits || []).forEach(t => {
+  const combinedTraits = [
+    ...(persona.traits || []).map(humanizeTrait),
+    ...buildActivityBadges(stats).map(item => item.text),
+  ];
+  combinedTraits.forEach(t => {
     const b = document.createElement("span");
     b.className = "badge badge--gold";
     b.textContent = t;
@@ -399,13 +490,20 @@ function renderPersonaSidebar(persona, stats) {
 
   // Interests
   els.personaInterests.innerHTML = "";
-  (persona.interests || []).slice(0, 12).forEach(interest => {
+  const interests = (persona.interests || []).slice(0, 12);
+  interests.forEach(interest => {
     const cls = INTEREST_PALETTE[interest] || "sky";
     const b = document.createElement("span");
     b.className = `badge badge--${cls}`;
-    b.textContent = interest.replace(/_/g, " ");
+    b.textContent = humanizeInterest(interest);
     els.personaInterests.appendChild(b);
   });
+  if (!interests.length) {
+    const b = document.createElement("span");
+    b.className = "badge badge--rose";
+    b.textContent = "Не удалось распознать интересы по interest-сетам";
+    els.personaInterests.appendChild(b);
+  }
 
   // Triggers
   const triggers = persona.triggers || [];
@@ -414,7 +512,7 @@ function renderPersonaSidebar(persona, stats) {
   triggers.forEach(t => {
     const b = document.createElement("span");
     b.className = "badge badge--rose";
-    b.textContent = t.replace(/_/g, " ");
+    b.textContent = humanizeTrigger(t);
     els.personaTriggers.appendChild(b);
   });
 
@@ -434,27 +532,47 @@ function renderPersonaSidebar(persona, stats) {
 // ═══════════════════════════════════════════════════════════════
 
 function renderKPI(s) {
+  const totalMessages = Math.max(1, Number(s.messages_total) || 0);
+  const interactions = (Number(s.reply_out) || 0) + (Number(s.reply_in) || 0) + (Number(s.mention_out) || 0) + (Number(s.mention_in) || 0);
+  const mediaSharePct = 100 * (Number(s.media_count) || 0) / totalMessages;
+  const urlsPer100 = 100 * (Number(s.urls_shared) || 0) / totalMessages;
+
   const cards = [
-    { label: "Messages",      value: formatNum(s.messages_total),          sub: `Active days: ${formatNum(s.active_days)}`,                     color: "gold" },
-    { label: "Chat Share",    value: `${formatPct(s.message_share_pct)}%`, sub: `Avg/day: ${formatFlt(s.avg_messages_per_active_day)}`,          color: "" },
-    { label: "Avg Length",    value: formatFlt(s.avg_message_length),      sub: `Words/msg: ${formatFlt(s.avg_words_per_message)}`,              color: "" },
-    { label: "Meaningful Wd", value: formatNum(s.meaningful_words_total),  sub: `Rate: ${formatFlt(s.meaningful_word_rate)}`,                    color: "sage" },
-    { label: "Media",         value: formatNum(s.media_count),             sub: `Voice: ${formatNum(s.voice_count)} · Emoji: ${formatNum(s.emoji_count)}`, color: "" },
-    { label: "Reply Out",     value: formatNum(s.reply_out),               sub: `Reply In: ${formatNum(s.reply_in)}`,                           color: "sky" },
-    { label: "Mentions Out",  value: formatNum(s.mention_out),             sub: `Mention In: ${formatNum(s.mention_in)}`,                       color: "" },
-    { label: "Toxicity Avg",  value: formatFlt(s.avg_toxicity),            sub: `Toxic msgs: ${formatNum(s.toxic_messages)}`,                   color: "rose" },
-    { label: "URLs Shared",   value: formatNum(s.urls_shared),             sub: `Text msgs: ${formatNum(s.text_messages)}`,                     color: "" },
-    { label: "Engagement",    value: formatFlt(s.engagement_rate),         sub: `Activity score: ${formatFlt(s.activity_score)}`,               color: "gold" },
+    { label: "Сообщения",              value: formatNum(s.messages_total),          sub: `Активных дней: ${formatNum(s.active_days)}`,                          color: "gold" },
+    { label: "Доля в чате",            value: `${formatPct(s.message_share_pct)}%`, sub: `Среднее в день: ${formatFlt(s.avg_messages_per_active_day)}`,          color: "" },
+    { label: "Средняя длина",          value: formatFlt(s.avg_message_length),      sub: `Слов в сообщении: ${formatFlt(s.avg_words_per_message)}`,              color: "" },
+    { label: "Содержательные слова",   value: formatNum(s.meaningful_words_total),  sub: `Доля: ${formatFlt(s.meaningful_word_rate)}`,                           color: "sage" },
+    { label: "Медиа",                  value: formatNum(s.media_count),             sub: `Голосовых: ${formatNum(s.voice_count)} · Эмодзи: ${formatNum(s.emoji_count)}`, color: "" },
+    { label: "Ответы исходящие",       value: formatNum(s.reply_out),               sub: `Ответы входящие: ${formatNum(s.reply_in)}`,                            color: "sky" },
+    { label: "Упоминания исходящие",   value: formatNum(s.mention_out),             sub: `Упоминания входящие: ${formatNum(s.mention_in)}`,                      color: "" },
+    { label: "Средняя токсичность",    value: formatFlt(s.avg_toxicity),            sub: `Токсичных сообщений: ${formatNum(s.toxic_messages)}`,                  color: "rose" },
+    { label: "Поделился URL",          value: formatNum(s.urls_shared),             sub: `Текстовых сообщений: ${formatNum(s.text_messages)}`,                   color: "" },
+    { label: "Вовлечённость",          value: formatFlt(s.engagement_rate),         sub: `Индекс активности: ${formatFlt(s.activity_score)}`,                    color: "gold" },
+    { label: "Соц. взаимодействия",    value: formatNum(interactions),              sub: `На 100 сообщений: ${formatFlt((100*interactions)/totalMessages)}`,     color: "sky" },
+    { label: "Медиа-насыщенность",     value: `${formatPct(mediaSharePct)}%`,       sub: `URL на 100 сообщений: ${formatFlt(urlsPer100)}`,                       color: "" },
   ];
   buildKpiGrid(els.kpiGrid, cards);
 }
 
 function renderBehaviorGrid(s) {
+  const totalMessages = Math.max(1, Number(s.messages_total) || 0);
+  const activeDays = Math.max(1, Number(s.active_days) || 0);
+  const inbound = (Number(s.reply_in) || 0) + (Number(s.mention_in) || 0);
+  const outbound = (Number(s.reply_out) || 0) + (Number(s.mention_out) || 0);
+  const dialogDensity = 100 * (inbound + outbound) / totalMessages;
+  const responseBalance = safeDiv((Number(s.reply_out) || 0) + 1, (Number(s.reply_in) || 0) + 1);
+  const socialLoadPerDay = inbound / activeDays;
+  const semanticIntensity = safeDiv((Number(s.meaningful_words_total) || 0), totalMessages);
+
   const cards = [
-    { label: "Night Msgs",    value: formatNum(s.night_messages),          sub: `Share: ${formatPct(s.night_share_pct)}%`,                       color: "sky" },
-    { label: "Weekend Msgs",  value: formatNum(s.weekend_messages),        sub: `Share: ${formatPct(s.weekend_share_pct)}%`,                     color: "" },
-    { label: "Questions",     value: formatNum(s.question_messages),       sub: `Exclamations: ${formatNum(s.exclamation_messages)}`,             color: "rose" },
-    { label: "Empty Msgs",    value: formatNum(s.empty_messages),          sub: `Smart words/msg: ${formatFlt(s.avg_meaningful_words_per_message)}`, color: "" },
+    { label: "Ночные сообщения",     value: formatNum(s.night_messages),          sub: `Доля: ${formatPct(s.night_share_pct)}%`,                       color: "sky" },
+    { label: "Выходные сообщения",   value: formatNum(s.weekend_messages),        sub: `Доля: ${formatPct(s.weekend_share_pct)}%`,                     color: "" },
+    { label: "Вопросы",              value: formatNum(s.question_messages),       sub: `Восклицания: ${formatNum(s.exclamation_messages)}`,            color: "rose" },
+    { label: "Пустые сообщения",     value: formatNum(s.empty_messages),          sub: `Смысловые слова/сообщение: ${formatFlt(semanticIntensity)}`,    color: "" },
+    { label: "Плотность диалога",    value: formatFlt(dialogDensity),             sub: `Взаимодействий на 100 сообщений`,                               color: "gold" },
+    { label: "Баланс ответов",       value: formatFlt(responseBalance),           sub: `Исходящие/входящие ответы`,                                     color: "" },
+    { label: "Соц. отклик/день",     value: formatFlt(socialLoadPerDay),          sub: `Входящие реакции в активный день`,                              color: "sky" },
+    { label: "Темп участия",         value: formatFlt(s.avg_messages_per_active_day), sub: `Сообщений в активный день`,                                 color: "rose" },
   ];
   buildKpiGrid(els.behaviorGrid, cards);
 }
@@ -479,7 +597,7 @@ function buildKpiGrid(container, cards) {
 
 function renderBarChart(container, values, labels) {
   container.innerHTML = "";
-  if (!values.length) { renderEmpty(container, "No chart data."); return; }
+  if (!values.length) { renderEmpty(container, "Нет данных для графика."); return; }
   const max = Math.max(...values, 1);
   const dominant = argmax(values);
   values.forEach((v, i) => {
@@ -510,7 +628,7 @@ function renderDailyTrend(dateMap) {
     .filter(([, v]) => isFinite(v))
     .sort(([a], [b]) => a.localeCompare(b));
 
-  if (!entries.length) { els.dateRangeLabel.textContent = "n/a"; return; }
+  if (!entries.length) { els.dateRangeLabel.textContent = "н/д"; return; }
 
   const vals  = entries.map(e => e[1]);
   const dates = entries.map(e => e[0]);
@@ -583,17 +701,22 @@ function renderDailyTrend(dateMap) {
 
 function renderWordList(container, words, valueKey, variant) {
   container.innerHTML = "";
-  if (!Array.isArray(words) || !words.length) { renderEmpty(container, "No word data."); return; }
+  if (!Array.isArray(words) || !words.length) { renderEmpty(container, "Нет данных по словам."); return; }
   const max = words.reduce((m, w) => Math.max(m, Number(w[valueKey]) || 0), 1);
   words.forEach(w => {
     const val = Number(w[valueKey]) || 0;
-    const pct = Math.max(4, (val / max) * 100);
+    const pct = variant === "smart"
+      ? Math.max(4, Math.min(100, val))
+      : Math.max(4, (val / max) * 100);
+    const displayValue = valueKey === "score"
+      ? (variant === "smart" ? `${Number(val).toFixed(1)}/100` : Number(val).toFixed(2))
+      : formatNum(val);
     const li = document.createElement("li");
     li.className = "word-item";
     li.innerHTML = `
       <span class="word-label">${esc(String(w.word ?? ""))}</span>
       <span class="word-track"><span class="word-fill${variant ? " word-fill--"+variant : ""}" style="width:${pct.toFixed(1)}%"></span></span>
-      <span class="word-count">${valueKey === "score" ? Number(val).toFixed(2) : formatNum(val)}</span>
+      <span class="word-count">${displayValue}</span>
     `;
     container.appendChild(li);
   });
@@ -608,21 +731,23 @@ function renderRelations(container, edges) {
   const sorted = [...(edges || [])]
     .sort((a, b) => (Number(b.weight) || 0) - (Number(a.weight) || 0))
     .slice(0, 15);
-  if (!sorted.length) { renderEmpty(container, "No relation edges."); return; }
+  if (!sorted.length) { renderEmpty(container, "Нет связей для отображения."); return; }
 
   sorted.forEach(edge => {
+    const fromLabel = formatUserWithID(edge.from_user_id);
+    const toLabel = formatUserWithID(edge.to_user_id);
     const li = document.createElement("li");
     li.className = "relation-item";
     li.innerHTML = `
       <div class="relation-top">
-        <span class="relation-id">${esc(String(edge.from_user_id ?? "?"))} → ${esc(String(edge.to_user_id ?? "?"))}</span>
+        <span class="relation-id">${esc(fromLabel)} → ${esc(toLabel)}</span>
         <span class="relation-weight">${formatFlt(edge.weight)}</span>
       </div>
       <div class="relation-meta">
-        <span class="relation-chip">reply <span>${formatNum(edge.replies)}</span></span>
-        <span class="relation-chip">mention <span>${formatNum(edge.mentions)}</span></span>
-        <span class="relation-chip">adj <span>${formatNum(edge.temporal_adjacency)}</span></span>
-        <span class="relation-chip">overlap <span>${formatNum(edge.context_overlap)}</span></span>
+        <span class="relation-chip">ответы <span>${formatNum(edge.replies)}</span></span>
+        <span class="relation-chip">упоминания <span>${formatNum(edge.mentions)}</span></span>
+        <span class="relation-chip">соседство <span>${formatNum(edge.temporal_adjacency)}</span></span>
+        <span class="relation-chip">перекрытие <span>${formatNum(edge.context_overlap)}</span></span>
       </div>
     `;
     container.appendChild(li);
@@ -647,7 +772,7 @@ function renderTopics(topics) {
       <span class="topic-id">${esc(t.topic_id || "")}</span>
       ${t.summary ? `<p class="topic-summary">${esc(t.summary)}</p>` : ""}
       ${keywords ? `<div class="topic-keywords">${keywords}</div>` : ""}
-      <span class="topic-confidence">conf: ${isFinite(Number(t.confidence)) ? Number(t.confidence).toFixed(2) : "—"} · ${formatNum((t.message_ids || []).length)} msgs</span>
+      <span class="topic-confidence">уверенность: ${isFinite(Number(t.confidence)) ? Number(t.confidence).toFixed(2) : "—"} · ${formatNum((t.message_ids || []).length)} сообщений</span>
     `;
     els.topicsList.appendChild(div);
   });
@@ -671,14 +796,14 @@ function renderContent(content) {
     count: `×${item.count}`,
   }));
   renderContentList(els.mentionsList, mentions.slice(0, 20), item => ({
-    value: `user_${item.user_id}`,
+    value: formatUserWithID(item.user_id),
     count: `×${item.count}`,
   }));
 }
 
 function renderContentList(container, items, mapper) {
   container.innerHTML = "";
-  if (!items.length) { renderEmpty(container, "No data."); return; }
+  if (!items.length) { renderEmpty(container, "Нет данных."); return; }
   items.forEach(item => {
     const { value, count } = mapper(item);
     const li = document.createElement("li");
@@ -715,7 +840,7 @@ function rebuildMessageFilter() {
     ? state.allMessages.filter(m => String(m.text || "").toLowerCase().includes(q)
         || String(m.from_display_name || m.from_username || "").toLowerCase().includes(q))
     : state.allMessages;
-  els.messageCount.textContent = `${formatNum(state.filteredMessages.length)} messages`;
+  els.messageCount.textContent = `${formatNum(state.filteredMessages.length)} сообщений`;
 }
 
 function renderMessageBatch(reset = false) {
@@ -735,7 +860,7 @@ function renderMessageBatch(reset = false) {
   state.renderedCount = to;
 
   if (!state.filteredMessages.length && reset) {
-    renderEmpty(els.messageFeed, "No messages match this filter.");
+    renderEmpty(els.messageFeed, "Нет сообщений по текущему фильтру.");
   }
 }
 
@@ -745,7 +870,7 @@ function buildMessageEl(msg) {
 
   if (msg._isOwn) li.classList.add("is-own");
 
-  const author = msg.from_display_name || msg.from_username || `user_${msg.from_user_id ?? "?"}`;
+  const author = formatMessageAuthor(msg);
   li.querySelector(".message-author").textContent = author;
   li.querySelector(".message-time").textContent = msg.date ? fmtTime(msg.date) : "—";
   li.querySelector(".message-time").dateTime = msg.date || "";
@@ -754,12 +879,12 @@ function buildMessageEl(msg) {
   if (msg.media_type) {
     const badge = li.querySelector(".message-type-badge");
     badge.hidden = false;
-    badge.textContent = msg.media_type;
+    badge.textContent = humanizeMediaType(msg.media_type);
   }
 
   // Text with optional highlight
   const bodyEl = li.querySelector(".message-body");
-  const raw = String(msg.text || "").trim() || (msg.media_type ? `[${msg.media_type}]` : "(empty)");
+  const raw = String(msg.text || "").trim() || (msg.media_type ? `[${humanizeMediaType(msg.media_type)}]` : "(пусто)");
   bodyEl.innerHTML = highlightText(raw, state.searchQuery);
 
   // Footer
@@ -771,14 +896,14 @@ function buildMessageEl(msg) {
 
   if (msg.reply_to_msg_id) {
     replyEl.hidden = false;
-    replyEl.textContent = `↩ reply to #${msg.reply_to_msg_id}`;
+    replyEl.textContent = `↩ ответ на #${msg.reply_to_msg_id}`;
     hasFooter = true;
   }
 
   const tox = Number(msg.toxicity_score);
   if (isFinite(tox) && tox > 0.3) {
     toxEl.hidden = false;
-    toxEl.textContent = `tox ${tox.toFixed(2)}`;
+    toxEl.textContent = `токсичность ${tox.toFixed(2)}`;
     hasFooter = true;
   }
 
@@ -797,6 +922,212 @@ function setupSentinelObserver() {
     { root: els.messageFeed, threshold: 0.1 }
   );
   state.sentinelObserver.observe(els.feedSentinel);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  DOMAIN HELPERS
+// ═══════════════════════════════════════════════════════════════
+
+function rebuildUserDirectory(profile = null, recentMessages = []) {
+  const next = new Map();
+
+  (state.users || []).forEach(u => {
+    upsertDirectoryUser(next, {
+      user_id: u.user_id,
+      display_name: u.display_name,
+      username: u.username,
+      first_name: u.first_name,
+      last_name: u.last_name,
+    });
+  });
+
+  if (profile && typeof profile === "object") {
+    upsertDirectoryUser(next, profile);
+  }
+
+  (recentMessages || []).forEach(m => {
+    upsertDirectoryUser(next, {
+      user_id: m.from_user_id,
+      display_name: m.from_display_name,
+      username: m.from_username,
+    });
+  });
+
+  (state.snapshot?.content?.mentions || []).forEach(item => {
+    upsertDirectoryUser(next, { user_id: item.user_id });
+  });
+
+  state.userDirectory = next;
+}
+
+function upsertDirectoryUser(directory, userLike) {
+  const id = Number(userLike?.user_id);
+  if (!isFinite(id) || id <= 0) return;
+
+  const prev = directory.get(id) || {};
+  const fullName = [userLike?.first_name, userLike?.last_name]
+    .map(v => String(v || "").trim())
+    .filter(Boolean)
+    .join(" ");
+
+  const displayRaw = String(userLike?.display_name || "").trim();
+  const displayName = nonEmpty(displayRaw, [fullName, prev.display_name || ""]);
+  const username = nonEmpty(normalizeUsername(userLike?.username), [normalizeUsername(prev.username)]);
+
+  directory.set(id, {
+    user_id: id,
+    display_name: displayName === "н/д" ? "" : displayName,
+    username: username === "н/д" ? "" : username,
+  });
+}
+
+function normalizeUsername(username) {
+  return String(username || "").trim().replace(/^@+/, "");
+}
+
+function formatUserWithID(userID) {
+  const id = Number(userID);
+  if (!isFinite(id) || id <= 0) return "Неизвестный пользователь";
+
+  const known = state.userDirectory.get(id);
+  const displayName = String(known?.display_name || "").trim();
+  const username = normalizeUsername(known?.username);
+
+  if (displayName && username) return `${displayName} (@${username}) · id:${id}`;
+  if (displayName) return `${displayName} · id:${id}`;
+  if (username) return `@${username} · id:${id}`;
+  return `user_${id}`;
+}
+
+function formatMessageAuthor(msg) {
+  const id = Number(msg?.from_user_id);
+  const fromDisplay = String(msg?.from_display_name || "").trim();
+  const fromUsername = normalizeUsername(msg?.from_username);
+  const known = isFinite(id) && id > 0 ? state.userDirectory.get(id) : null;
+
+  const displayName = nonEmpty(fromDisplay, [known?.display_name || ""]);
+  const username = nonEmpty(fromUsername, [normalizeUsername(known?.username)]);
+
+  const base = [];
+  if (displayName !== "н/д") base.push(displayName);
+  if (username !== "н/д") base.push(`@${username}`);
+  if (!base.length) {
+    if (isFinite(id) && id > 0) return `user_${id}`;
+    return "Неизвестный";
+  }
+  return base.join(" · ");
+}
+
+function buildPersonaSummary(persona, stats) {
+  const parts = [];
+  if (persona?.role) parts.push(humanizeRole(persona.role));
+  if (persona?.tone) parts.push(humanizeTone(persona.tone).toLowerCase());
+
+  const interests = (persona?.interests || []).slice(0, 2).map(humanizeInterest);
+  if (interests.length) {
+    parts.push(`интересы: ${interests.join(", ")}`);
+  } else {
+    parts.push("интересы не распознаны по interest-сетам");
+  }
+
+  const total = Number(stats?.messages_total) || 0;
+  const activeDays = Number(stats?.active_days) || 0;
+  if (total > 0) {
+    parts.push(`${formatNum(total)} сообщений за ${formatNum(activeDays)} дн.`);
+  }
+
+  return parts.length
+    ? parts.join(" · ")
+    : "Сигнала пока недостаточно для уверенного описания профиля.";
+}
+
+function buildActivityBadges(stats) {
+  const score = Number(stats?.activity_score) || 0;
+  const messages = Number(stats?.messages_total) || 0;
+  const activeDays = Number(stats?.active_days) || 0;
+  const engagement = Number(stats?.engagement_rate) || 0;
+  const replyOut = Number(stats?.reply_out) || 0;
+  const mentionOut = Number(stats?.mention_out) || 0;
+  const nightShare = Number(stats?.night_share_pct) || 0;
+  const weekendShare = Number(stats?.weekend_share_pct) || 0;
+
+  const tags = [
+    { text: `Звание: ${activityRankLabel(score)}`, cls: "badge--gold" },
+    { text: `Дивизион: ${activityDivisionLabel(messages)}`, cls: "badge--sky" },
+  ];
+
+  if (activeDays >= 45) {
+    tags.push({ text: "Марафонец активности", cls: "badge--sage" });
+  } else if (activeDays >= 20) {
+    tags.push({ text: "Стабильный ритм", cls: "badge--sage" });
+  }
+
+  if (engagement >= 0.65) {
+    tags.push({ text: "Лидер вовлечения", cls: "badge--rose" });
+  } else if (engagement >= 0.4) {
+    tags.push({ text: "Катализатор диалога", cls: "badge--rose" });
+  }
+
+  if (replyOut + mentionOut >= 250) {
+    tags.push({ text: "Навигатор обсуждений", cls: "badge--gold" });
+  }
+  if (nightShare >= 35) {
+    tags.push({ text: "Ночная смена", cls: "badge--rose" });
+  }
+  if (weekendShare >= 40) {
+    tags.push({ text: "Выходной активист", cls: "badge--sage" });
+  }
+
+  return tags.slice(0, 7);
+}
+
+function activityRankLabel(score) {
+  if (score >= 0.9) return "Легенда чата";
+  if (score >= 0.75) return "Грандмастер дискуссий";
+  if (score >= 0.6) return "Командир обсуждений";
+  if (score >= 0.45) return "Ветеран диалога";
+  if (score >= 0.3) return "Активист";
+  if (score >= 0.15) return "Разведчик";
+  return "Новобранец";
+}
+
+function activityDivisionLabel(messages) {
+  if (messages >= 5000) return "Алмаз I";
+  if (messages >= 3000) return "Платина I";
+  if (messages >= 1800) return "Золото I";
+  if (messages >= 900) return "Серебро I";
+  if (messages >= 300) return "Бронза I";
+  return "Квалификация";
+}
+
+function humanizeRole(role) {
+  return ROLE_LABELS[role] || fallbackLabel(role);
+}
+
+function humanizeTone(tone) {
+  return TONE_LABELS[tone] || fallbackLabel(tone);
+}
+
+function humanizeTrait(trait) {
+  return TRAIT_LABELS[trait] || fallbackLabel(trait);
+}
+
+function humanizeInterest(interest) {
+  return INTEREST_LABELS[interest] || fallbackLabel(interest);
+}
+
+function humanizeTrigger(trigger) {
+  return TRIGGER_LABELS[trigger] || fallbackLabel(trigger);
+}
+
+function humanizeMediaType(mediaType) {
+  return MEDIA_TYPE_LABELS[mediaType] || fallbackLabel(mediaType);
+}
+
+function fallbackLabel(value) {
+  const text = String(value || "").trim().replace(/[_-]+/g, " ");
+  if (!text) return "—";
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -850,7 +1181,7 @@ function appendOption(sel, value, label) {
 }
 
 function displayUser(u) {
-  return nonEmpty(u.display_name, [u.username ? `@${u.username}` : "", u.user_id ? `user_${u.user_id}` : "unknown"]);
+  return nonEmpty(u.display_name, [u.username ? `@${u.username}` : "", u.user_id ? `user_${u.user_id}` : "неизвестный"]);
 }
 
 function numArr(arr, len) {
@@ -873,7 +1204,14 @@ function nonEmpty(primary, fallbacks) {
     const fs = String(f || "").trim();
     if (fs) return fs;
   }
-  return "n/a";
+  return "н/д";
+}
+
+function safeDiv(numerator, denominator) {
+  const n = Number(numerator);
+  const d = Number(denominator);
+  if (!isFinite(n) || !isFinite(d) || d === 0) return 0;
+  return n / d;
 }
 
 function debounce(fn, ms) {
@@ -881,14 +1219,14 @@ function debounce(fn, ms) {
   return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
 
-const _numFmt = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+const _numFmt = new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 });
 function formatNum(v) { const n = Number(v); return isFinite(n) ? _numFmt.format(n) : "0"; }
 function formatFlt(v) { const n = Number(v); return isFinite(n) ? n.toFixed(2) : "0.00"; }
 function formatPct(v) { const n = Number(v); return isFinite(n) ? n.toFixed(2) : "0.00"; }
 
 function fmtDate(iso) {
   if (!iso) return "—";
-  try { return new Date(iso).toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" }); }
+  try { return new Date(iso).toLocaleDateString("ru-RU", { day:"2-digit", month:"short", year:"numeric" }); }
   catch { return iso; }
 }
 
@@ -896,7 +1234,7 @@ function fmtTime(iso) {
   if (!iso) return "—";
   try {
     const d = new Date(iso);
-    return d.toLocaleString("en-GB", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
+    return d.toLocaleString("ru-RU", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
   } catch { return iso; }
 }
 

@@ -111,7 +111,7 @@ func SnapshotOptionsFromProfile(profile SnapshotProfile) SnapshotOptions {
 	case SnapshotProfileFast:
 		return SnapshotOptions{
 			Profile:               SnapshotProfileFast,
-			IncludeSmartWords:     false,
+			IncludeSmartWords:     true,
 			IncludeContentStats:   false,
 			IncludeTopicContexts:  false,
 			IncludePersonaContext: false,

@@ -96,7 +96,7 @@ func (s *StatsEngine) Add(m domain.MessageRecord) {
 	}
 
 	cs.TopWords = topWords(s.chatWordFreq[chatKey], 25)
-	us.TopWords = topWords(s.userWordFreq[userKey], 15)
+	us.TopWords = topWords(s.userWordFreq[userKey], 25)
 }
 
 func (s *StatsEngine) Chat(accountID string, chatID int64) (domain.ChatStats, bool) {

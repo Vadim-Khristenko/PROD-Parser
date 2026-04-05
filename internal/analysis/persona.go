@@ -1,6 +1,7 @@
 package analysis
 
 import (
+	"math"
 	"sort"
 	"strings"
 	"time"
@@ -464,11 +465,82 @@ var interestRules = []interestRule{
 			"книг", "статья", "исследовани",
 		},
 	},
+
+	{
+		label: "design_creativity",
+		keywords: []string{
+			// EN
+			"design", "ux", "ui", "figma", "wireframe", "prototype", "mockup",
+			"typography", "illustration", "branding", "palette", "color", "motion design",
+			"photoshop", "illustrator", "after effects", "dribbble", "behance",
+			// RU
+			"дизайн", "интерфейс", "фигма", "прототип", "макет",
+			"типограф", "иллюстрац", "бренд", "палитр", "цвет",
+			"моушн", "анимаци", "визуал",
+		},
+	},
+
+	{
+		label: "devrel_content",
+		keywords: []string{
+			// EN
+			"docs", "documentation", "manual", "guide", "tutorial", "article", "blog", "post",
+			"newsletter", "webinar", "workshop", "meetup", "conference", "talk", "speaker",
+			"livestream", "recording", "knowledge base",
+			// RU
+			"документац", "дока", "мануал", "гайд", "туториал",
+			"статья", "блог", "пост", "контент", "рассылк",
+			"доклад", "спикер", "вебинар", "митап", "конференц", "стрим",
+		},
+	},
+
+	{
+		label: "career_hiring",
+		keywords: []string{
+			// EN
+			"career", "hiring", "vacancy", "recruiter", "interview", "resume", "cv", "portfolio",
+			"offer", "internship", "mentorship", "promotion", "compensation", "job", "headhunter",
+			// RU
+			"карьер", "ваканси", "найм", "рекрутер", "собеседовани", "резюме",
+			"портфолио", "оффер", "стажировк", "ментор", "повышени", "зарплатн вилк",
+		},
+	},
+
+	{
+		label: "legal_compliance",
+		keywords: []string{
+			// EN
+			"legal", "law", "contract", "agreement", "compliance", "regulation", "policy", "terms",
+			"license", "audit", "soc2", "iso", "risk management", "consent", "privacy policy",
+			// RU
+			"юрид", "право", "договор", "соглашени", "комплаенс", "регуляц", "политик",
+			"лицензи", "аудит", "персональн данн", "согласие", "норматив",
+		},
+	},
+
+	{
+		label: "automation_productivity",
+		keywords: []string{
+			// EN
+			"automation", "automate", "workflow", "zapier", "n8n", "make.com", "ifttt",
+			"no-code", "low-code", "macro", "template", "scheduler", "cron", "bot", "productivity",
+			"shortcut", "integration",
+			// RU
+			"автоматизац", "воркфлоу", "запир", "n8n", "ноу-код", "лоу-код",
+			"макрос", "шаблон", "крон", "бот", "продуктивност", "интеграц",
+		},
+	},
 }
 
 var interestStopWords = map[string]struct{}{
 	"и": {}, "в": {}, "во": {}, "на": {}, "не": {}, "что": {}, "как": {}, "это": {}, "так": {}, "то": {}, "ну": {},
 	"the": {}, "a": {}, "an": {}, "and": {}, "or": {}, "to": {}, "of": {}, "in": {}, "on": {}, "for": {},
+	"is": {}, "are": {}, "am": {}, "be": {}, "this": {}, "that": {}, "it": {}, "you": {}, "we": {},
+}
+
+var interestStemSuffixes = []string{
+	"ization", "isation", "ations", "ation", "ments", "ment", "ingly", "ingly", "ingly", "ingly", "ing", "ers", "er", "ies", "ied", "ed", "ly", "es", "s",
+	"иями", "ями", "ами", "иях", "ях", "ах", "ого", "ему", "ому", "ыми", "ими", "ее", "ая", "яя", "ое", "ые", "ий", "ый", "ой", "ие", "ия", "ию", "ть", "ти", "ка", "ки", "ов", "ев",
 }
 
 // BuildPersonas creates heuristic personas ready to enrich by LLM later.
@@ -495,7 +567,7 @@ func BuildPersonas(accountID string, chatID int64, users []domain.UserStats, edg
 				activityTrait(u),
 				toxicityTrait(u),
 			},
-			Interests:      wordsToInterests(u.TopWords),
+			Interests:      wordsToInterests(interestSignals(u)),
 			Triggers:       triggerHints(u),
 			TypicalPhrases: typicalPhrases(u.TopWords),
 			Relations:      rel,
@@ -565,13 +637,13 @@ func wordsToInterests(words []domain.WordScore) []string {
 	if len(words) == 0 {
 		return nil
 	}
-	candidates := keywordCandidates(words, 18)
+	candidates := keywordCandidates(words, 48)
 	if len(candidates) == 0 {
 		return nil
 	}
 	scores := make(map[string]float64, len(interestRules))
 	for _, candidate := range candidates {
-		term := strings.TrimSpace(strings.ToLower(candidate.Word))
+		term := normalizeInterestToken(candidate.Word)
 		if term == "" {
 			continue
 		}
@@ -580,8 +652,8 @@ func wordsToInterests(words []domain.WordScore) []string {
 			weight = 1
 		}
 		for _, rule := range interestRules {
-			if containsKeywordToken(term, rule.keywords) {
-				scores[rule.label] += weight
+			if strength := keywordMatchStrength(term, rule.keywords); strength > 0 {
+				scores[rule.label] += weight * strength
 			}
 		}
 	}
@@ -599,37 +671,28 @@ func wordsToInterests(words []domain.WordScore) []string {
 		}
 		return all[i].score > all[j].score
 	})
+	if len(all) == 0 {
+		return nil
+	}
 
-	out := make([]string, 0, 4)
+	threshold := 1.8
+	maxScore := all[0].score
+	if maxScore < threshold {
+		threshold = math.Max(1.25, maxScore*0.78)
+	}
+
+	out := make([]string, 0, 5)
 	for _, item := range all {
-		if item.score < 2 {
+		if item.score < threshold {
 			continue
 		}
 		out = append(out, item.label)
-		if len(out) >= 4 {
+		if len(out) >= 5 {
 			break
 		}
 	}
 	if len(out) == 0 {
-		return fallbackKeywordInterests(candidates, 6)
-	}
-	if len(out) < 3 {
-		fallback := fallbackKeywordInterests(candidates, 3)
-		for _, keyword := range fallback {
-			if len(out) >= 4 {
-				break
-			}
-			exists := false
-			for _, current := range out {
-				if current == keyword {
-					exists = true
-					break
-				}
-			}
-			if !exists {
-				out = append(out, keyword)
-			}
-		}
+		return nil
 	}
 	return out
 }
@@ -723,44 +786,182 @@ func keywordCandidates(words []domain.WordScore, limit int) []domain.WordScore {
 	return out
 }
 
-func fallbackKeywordInterests(words []domain.WordScore, limit int) []string {
-	if len(words) == 0 || limit <= 0 {
+func interestSignals(u domain.UserStats) []domain.WordScore {
+	if len(u.TopWords) == 0 && len(u.SmartWords) == 0 {
 		return nil
 	}
-	out := make([]string, 0, limit)
-	seen := make(map[string]struct{}, limit)
-	for _, item := range words {
-		term := strings.TrimSpace(strings.ToLower(item.Word))
+
+	merged := make(map[string]int64, len(u.TopWords)+len(u.SmartWords))
+	order := make([]string, 0, len(u.TopWords)+len(u.SmartWords))
+
+	add := func(word string, weight int64) {
+		term := normalizeInterestToken(word)
 		if term == "" {
-			continue
+			return
 		}
-		if _, ok := seen[term]; ok {
-			continue
+		if _, stop := interestStopWords[term]; stop {
+			return
 		}
-		seen[term] = struct{}{}
-		out = append(out, term)
-		if len(out) >= limit {
-			break
+		if !hasMinRuneLen(term, 2) {
+			return
 		}
+		if _, exists := merged[term]; !exists {
+			order = append(order, term)
+		}
+		merged[term] += weight
+	}
+
+	for _, item := range u.TopWords {
+		weight := item.Count
+		if weight < 1 {
+			weight = 1
+		}
+		add(item.Word, weight)
+	}
+
+	for _, item := range u.SmartWords {
+		bonus := int64(math.Round(item.Score / 12.0))
+		if bonus < 1 {
+			bonus = 1
+		}
+		weight := item.Count + bonus
+		add(item.Word, weight)
+	}
+
+	out := make([]domain.WordScore, 0, len(order))
+	for _, term := range order {
+		out = append(out, domain.WordScore{Word: term, Count: merged[term]})
+	}
+
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Count == out[j].Count {
+			return out[i].Word < out[j].Word
+		}
+		return out[i].Count > out[j].Count
+	})
+
+	if len(out) > 48 {
+		out = out[:48]
 	}
 	return out
 }
 
-func containsKeywordToken(term string, keywords []string) bool {
+func keywordMatchStrength(term string, keywords []string) float64 {
 	if term == "" || len(keywords) == 0 {
-		return false
+		return 0
 	}
+	term = normalizeInterestToken(term)
+	if term == "" {
+		return 0
+	}
+	termStem := stemInterestToken(term)
+	best := 0.0
+
 	for _, keyword := range keywords {
-		keyword = strings.TrimSpace(strings.ToLower(keyword))
+		keyword = normalizeInterestToken(keyword)
 		if keyword == "" {
 			continue
 		}
+		keywordStem := stemInterestToken(keyword)
+
 		if term == keyword {
-			return true
+			if best < 2.0 {
+				best = 2.0
+			}
+			continue
 		}
-		if len(term) >= 4 && strings.Contains(term, keyword) {
-			return true
+		if termStem != "" && keywordStem != "" && termStem == keywordStem {
+			if best < 1.7 {
+				best = 1.7
+			}
+			continue
+		}
+
+		if hasMinRuneLen(term, 4) && hasMinRuneLen(keyword, 4) {
+			if strings.Contains(term, keyword) || strings.Contains(keyword, term) {
+				if best < 1.35 {
+					best = 1.35
+				}
+				continue
+			}
+		}
+
+		if hasMinRuneLen(termStem, 4) && hasMinRuneLen(keywordStem, 4) {
+			if strings.Contains(termStem, keywordStem) || strings.Contains(keywordStem, termStem) {
+				if best < 1.3 {
+					best = 1.3
+				}
+				continue
+			}
+			if sharedPrefixRunes(termStem, keywordStem) >= 6 && runeLenDelta(termStem, keywordStem) <= 1 {
+				if best < 1.26 {
+					best = 1.26
+				}
+				continue
+			}
+		}
+
+		if sharedPrefixRunes(term, keyword) >= 7 && runeLenDelta(term, keyword) <= 1 {
+			if best < 1.25 {
+				best = 1.25
+			}
 		}
 	}
-	return false
+
+	return best
+}
+
+func normalizeInterestToken(term string) string {
+	term = strings.TrimSpace(strings.ToLower(term))
+	term = strings.Trim(term, "#@")
+	return term
+}
+
+func stemInterestToken(term string) string {
+	term = normalizeInterestToken(term)
+	if term == "" {
+		return ""
+	}
+	for _, suffix := range interestStemSuffixes {
+		if strings.HasSuffix(term, suffix) {
+			base := strings.TrimSuffix(term, suffix)
+			if hasMinRuneLen(base, 4) {
+				return base
+			}
+		}
+	}
+	return term
+}
+
+func sharedPrefixRunes(a, b string) int {
+	ar := []rune(a)
+	br := []rune(b)
+	n := len(ar)
+	if len(br) < n {
+		n = len(br)
+	}
+	prefix := 0
+	for i := 0; i < n; i++ {
+		if ar[i] != br[i] {
+			break
+		}
+		prefix++
+	}
+	return prefix
+}
+
+func hasMinRuneLen(s string, min int) bool {
+	if min <= 0 {
+		return true
+	}
+	return utf8.RuneCountInString(s) >= min
+}
+
+func runeLenDelta(a, b string) int {
+	da := utf8.RuneCountInString(a)
+	db := utf8.RuneCountInString(b)
+	if da > db {
+		return da - db
+	}
+	return db - da
 }
