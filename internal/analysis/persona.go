@@ -413,14 +413,29 @@ var interestRules = []interestRule{
 		label: "media_entertainment",
 		keywords: []string{
 			// EN
-			"movie", "film", "series", "anime", "manga", "book",
+			"movie", "film", "series", "book",
 			"youtube", "twitch", "stream", "podcast",
 			"music", "playlist", "track", "album", "concert",
 			"netflix", "spotify", "crunchyroll",
 			// RU
-			"фильм", "сериал", "аниме", "манга", "книг",
+			"фильм", "сериал", "книг",
 			"ютуб", "стрим", "подкаст",
 			"музык", "плейлист", "трек", "альбом", "концерт",
+		},
+	},
+
+	{
+		label: "anime_fandom",
+		keywords: []string{
+			// EN
+			"anime", "manga", "manhwa", "manhua", "otaku", "waifu", "husbando",
+			"cosplay", "cosplayer", "kawaii", "senpai", "chan", "kun", "femboy",
+			"vtuber", "fandom", "shipping", "fanfic", "fanart", "doujin", "j-pop",
+			// RU
+			"аниме", "аниме-шн", "анимеш", "манга", "манхва", "манхуа", "отаку",
+			"вайфу", "хасбандо", "косплей", "коспле", "косплеер", "кавай", "няш",
+			"сенпай", "семпай", "тян", "кун", "фандом", "фанфик", "фанарт",
+			"фембой", "ролев", "ролеплей", "джейпоп",
 		},
 	},
 
@@ -533,9 +548,22 @@ var interestRules = []interestRule{
 }
 
 var interestStopWords = map[string]struct{}{
-	"и": {}, "в": {}, "во": {}, "на": {}, "не": {}, "что": {}, "как": {}, "это": {}, "так": {}, "то": {}, "ну": {},
+	// RU particles / pronouns / auxiliaries
+	"и": {}, "в": {}, "во": {}, "на": {}, "с": {}, "со": {}, "к": {}, "ко": {}, "у": {}, "о": {}, "об": {}, "от": {},
+	"до": {}, "за": {}, "из": {}, "по": {}, "при": {}, "под": {}, "над": {}, "через": {}, "между": {},
+	"не": {}, "ни": {}, "нет": {}, "да": {}, "но": {}, "а": {}, "или": {}, "ли": {}, "же": {}, "бы": {}, "ну": {},
+	"что": {}, "как": {}, "это": {}, "так": {}, "то": {}, "кто": {}, "где": {}, "когда": {}, "почему": {}, "зачем": {},
+	"он": {}, "она": {}, "оно": {}, "они": {}, "его": {}, "ее": {}, "её": {}, "их": {}, "ему": {}, "ей": {}, "им": {},
+	"я": {}, "ты": {}, "мы": {}, "вы": {}, "меня": {}, "мне": {}, "нам": {}, "вам": {}, "тебя": {}, "тебе": {},
+	"мой": {}, "моя": {}, "моё": {}, "мое": {}, "мои": {}, "твой": {}, "твоя": {}, "твое": {}, "твои": {},
+	"этот": {}, "эта": {}, "эти": {}, "тот": {}, "та": {}, "те": {}, "какой": {}, "какая": {}, "какие": {},
+	"уже": {}, "ещё": {}, "еще": {}, "будет": {}, "буду": {}, "будешь": {}, "был": {}, "была": {}, "были": {},
+
+	// EN function words / pronouns
 	"the": {}, "a": {}, "an": {}, "and": {}, "or": {}, "to": {}, "of": {}, "in": {}, "on": {}, "for": {},
-	"is": {}, "are": {}, "am": {}, "be": {}, "this": {}, "that": {}, "it": {}, "you": {}, "we": {},
+	"is": {}, "are": {}, "am": {}, "be": {}, "this": {}, "that": {}, "it": {}, "you": {}, "we": {}, "they": {},
+	"i": {}, "me": {}, "my": {}, "mine": {}, "your": {}, "yours": {}, "our": {}, "ours": {}, "their": {}, "theirs": {},
+	"he": {}, "she": {}, "him": {}, "her": {}, "them": {}, "his": {}, "hers": {}, "was": {}, "were": {}, "will": {},
 }
 
 var interestStemSuffixes = []string{
@@ -913,7 +941,7 @@ func keywordMatchStrength(term string, keywords []string) float64 {
 
 func normalizeInterestToken(term string) string {
 	term = strings.TrimSpace(strings.ToLower(term))
-	term = strings.Trim(term, "#@")
+	term = strings.Trim(term, "#@'\".,!?;:()[]{}<>«»`~+-=_/\\|")
 	return term
 }
 

@@ -1002,11 +1002,11 @@ func runTGFetch(log *zap.Logger, args []string) error {
 	fileMaxMessages := fs.Int("file-max-messages", envInt("JSONL_FILE_MAX_MESSAGES", 5000), "max messages per JSONL file segment (0 = single file)")
 	poll := fs.Bool("poll", envBool("TG_POLL", false), "enable persistent polling mode")
 	pollWithBackfill := fs.Bool("poll-with-backfill", envBool("TG_POLL_WITH_BACKFILL", true), "when --poll is enabled, backfill history first, then switch to polling")
-	pollIntervalMS := fs.Int("poll-interval-ms", envInt("TG_POLL_INTERVAL_MS", 5000), "polling interval in ms")
+	pollIntervalMS := fs.Int("poll-interval-ms", envInt("TG_POLL_INTERVAL_MS", 3000), "polling interval in ms")
 	cmdPolicy := fs.String("cmd-policy", envString("TG_CMD_POLICY", "owner"), "command policy: owner|admins|users|ids")
 	cmdIDs := fs.String("cmd-ids", envString("TG_CMD_IDS", ""), "comma-separated allowed user IDs for cmd-policy=ids")
 	cmdPrefix := fs.String("cmd-prefix", envString("TG_CMD_PREFIX", "/"), "command prefix in polling mode")
-	searchLimit := fs.Int("search-limit", envInt("TG_SEARCH_LIMIT", 7), "result limit for /search command")
+	searchLimit := fs.Int("search-limit", envInt("TG_SEARCH_LIMIT", 10), "result limit for /search command")
 	ownerID := fs.Int64("owner-id", envInt64("TG_OWNER_ID", 0), "owner user id for final parser summary report")
 	ownerUsername := fs.String("owner-username", envString("TG_OWNER_USERNAME", ""), "owner username for final parser summary report")
 	avatarDir := fs.String("avatar-dir", "", "avatar file directory metadata")
@@ -1057,6 +1057,10 @@ func runTGFetch(log *zap.Logger, args []string) error {
 	}
 	if strings.TrimSpace(*mediaCache) == "" && strings.TrimSpace(*mediaDir) != "" {
 		*mediaCache = filepath.Join(*mediaDir, "cache.json")
+	}
+
+	if err := normalizeTGFetchFlags(log, *poll, batch, rateMS, burst, requestTimeoutMS, retryMax, fileMaxMessages, pollIntervalMS, searchLimit); err != nil {
+		return err
 	}
 
 	allowedIDs, err := parseInt64CSV(*cmdIDs)
@@ -1283,6 +1287,86 @@ func parseInt64CSV(raw string) ([]int64, error) {
 		out = append(out, id)
 	}
 	return out, nil
+}
+
+func normalizeTGFetchFlags(
+	log *zap.Logger,
+	poll bool,
+	batch *int,
+	rateMS *int,
+	burst *int,
+	requestTimeoutMS *int,
+	retryMax *int,
+	fileMaxMessages *int,
+	pollIntervalMS *int,
+	searchLimit *int,
+) error {
+	if batch == nil || rateMS == nil || burst == nil || requestTimeoutMS == nil || retryMax == nil || fileMaxMessages == nil || pollIntervalMS == nil || searchLimit == nil {
+		return errors.New("tg-fetch flag normalization got nil pointer")
+	}
+
+	if *fileMaxMessages < 0 {
+		return errors.New("--file-max-messages must be >= 0")
+	}
+	if *requestTimeoutMS < 0 {
+		return errors.New("--request-timeout-ms must be >= 0")
+	}
+
+	if *batch <= 0 || *batch > 100 {
+		old := *batch
+		*batch = 100
+		log.Warn("tg-fetch: adjusted --batch to safe value", zap.Int("old", old), zap.Int("new", *batch))
+	}
+
+	if *rateMS <= 0 {
+		old := *rateMS
+		*rateMS = 100
+		log.Warn("tg-fetch: adjusted --rate-ms to default", zap.Int("old", old), zap.Int("new", *rateMS))
+	} else if *rateMS < 30 {
+		old := *rateMS
+		*rateMS = 30
+		log.Warn("tg-fetch: clamped --rate-ms to avoid flood pressure", zap.Int("old", old), zap.Int("new", *rateMS))
+	}
+
+	if *burst <= 0 {
+		old := *burst
+		*burst = 1
+		log.Warn("tg-fetch: adjusted --burst to minimum", zap.Int("old", old), zap.Int("new", *burst))
+	}
+
+	if *retryMax <= 0 {
+		old := *retryMax
+		*retryMax = 8
+		log.Warn("tg-fetch: adjusted --retry-max to default", zap.Int("old", old), zap.Int("new", *retryMax))
+	}
+
+	if poll {
+		if *pollIntervalMS <= 0 {
+			old := *pollIntervalMS
+			*pollIntervalMS = 3000
+			log.Warn("tg-fetch: adjusted --poll-interval-ms to default", zap.Int("old", old), zap.Int("new", *pollIntervalMS))
+		} else if *pollIntervalMS < 1200 {
+			old := *pollIntervalMS
+			*pollIntervalMS = 1200
+			log.Warn("tg-fetch: clamped --poll-interval-ms for polling stability", zap.Int("old", old), zap.Int("new", *pollIntervalMS))
+		}
+		if *requestTimeoutMS == 0 {
+			*requestTimeoutMS = 20000
+			log.Info("tg-fetch: applied default --request-timeout-ms for polling", zap.Int("value", *requestTimeoutMS))
+		}
+	}
+
+	if *searchLimit <= 0 {
+		old := *searchLimit
+		*searchLimit = 10
+		log.Warn("tg-fetch: adjusted --search-limit to default", zap.Int("old", old), zap.Int("new", *searchLimit))
+	} else if *searchLimit > 25 {
+		old := *searchLimit
+		*searchLimit = 25
+		log.Warn("tg-fetch: clamped --search-limit to protect command latency", zap.Int("old", old), zap.Int("new", *searchLimit))
+	}
+
+	return nil
 }
 
 func bootstrapImportJSONL(

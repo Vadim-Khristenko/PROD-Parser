@@ -145,19 +145,20 @@ go run -tags telegram ./cmd/prod-parser tg-fetch \
   --state ./data --account acc1 \
   --api-id "$TG_API_ID" --api-hash "$TG_API_HASH" \
   --phone "$TG_PHONE" --peer @my_channel \
-  --poll --poll-interval-ms 5000 \
+  --poll --poll-interval-ms 3000 \
   --poll-with-backfill \
   --max-info \
   --file-max-messages 5000 \
   --cmd-policy admins \
-  --search-limit 7 \
+  --search-limit 10 \
   --owner-id 123456789 \
   --cmd-prefix /
 ```
 
 `--poll-with-backfill` first ingests history, then continues with live polling in one process.
-`--max-info` enables `--fetch-bio`, `--fetch-avatars`, and `--with-raw` with default avatar path under `--state`.
+`--max-info` enables `--fetch-bio`, `--fetch-avatars`, `--fetch-media`, and `--with-raw` with default media/avatar paths under `--state`.
 `--file-max-messages` splits JSONL into segments (`messages_000001.jsonl`, `messages_000002.jsonl`, ...).
+Too aggressive runtime flags are auto-normalized for stability: `--poll-interval-ms` is clamped to >= 1200ms, `--search-limit` to <= 25, and `--rate-ms` to >= 30ms.
 
 Supported command policies:
 

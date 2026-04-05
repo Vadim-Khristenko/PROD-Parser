@@ -76,3 +76,22 @@ func TestWordsToInterestsRecognizesStemmedCareerTokens(t *testing.T) {
 		t.Fatalf("expected career_hiring in interests: %+v", interests)
 	}
 }
+
+func TestWordsToInterestsRecognizesAnimeFandomTokens(t *testing.T) {
+	interests := wordsToInterests([]domain.WordScore{
+		{Word: "фембой", Count: 6},
+		{Word: "сенпай", Count: 4},
+		{Word: "косплей", Count: 3},
+	})
+
+	found := false
+	for _, interest := range interests {
+		if interest == "anime_fandom" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected anime_fandom in interests: %+v", interests)
+	}
+}
