@@ -1,0 +1,5 @@
+{"account_id":"acc1","chat_id":10001,"message_id":1,"date":"2026-04-04T10:00:00Z","from_user_id":101,"text":"Нужно быстро закрыть баг по релизу","mentions_user_ids":[102],"media_type":"","has_voice":false}
+{"account_id":"acc1","chat_id":10001,"message_id":2,"date":"2026-04-04T10:03:00Z","from_user_id":102,"text":"Согласен, беру фикс и пушну через час","reply_to_msg_id":1,"mentions_user_ids":[101],"media_type":"","has_voice":false}
+{"account_id":"acc1","chat_id":10001,"message_id":3,"date":"2026-04-04T10:15:00Z","from_user_id":103,"text":"Вы задолбали с этим релизом, всё криво","mentions_user_ids":[101,102],"media_type":"","has_voice":false}
+{"account_id":"acc1","chat_id":10001,"message_id":4,"date":"2026-04-04T10:16:00Z","from_user_id":101,"text":"Ок, без токсичности, давайте по шагам","reply_to_msg_id":3,"mentions_user_ids":[103],"media_type":"","has_voice":false}
+{"account_id":"acc1","chat_id":10001,"message_id":5,"date":"2026-04-04T12:00:00Z","from_user_id":104,"text":"Кто сегодня на созвон по аналитике?","mentions_user_ids":[],"media_type":"voice","has_voice":true}

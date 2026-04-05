@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PROD PARSER — User Signal Dashboard</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="bg-grain" aria-hidden="true"></div>
+
+    <!-- ═══ TOP BAR ═══ -->
+    <header class="topbar" role="banner">
+      <div class="topbar-brand">
+        <span class="brand-eyebrow">PROD PARSER</span>
+        <span class="brand-tagline">made with love by VAI</span>
+      </div>
+      <nav class="topbar-actions" aria-label="Dashboard controls">
+        <button id="refreshBtn" class="btn btn--ghost" type="button" title="Refresh Sources (R)">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg>
+          Refresh
+        </button>
+        <label class="btn btn--ghost upload-label" for="fileInput" title="Load snapshot JSON">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Load JSON
+          <input id="fileInput" type="file" accept="application/json,.json" tabindex="-1" />
+        </label>
+        <div id="statusBadge" class="status-badge" aria-live="polite" role="status">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span id="statusText">idle</span>
+        </div>
+      </nav>
+    </header>
+
+    <!-- ═══ MAIN SHELL ═══ -->
+    <div class="shell">
+
+      <!-- ─── SIDEBAR ─── -->
+      <aside class="sidebar" aria-label="Source control">
+
+        <section class="panel sidebar-routing" aria-labelledby="routing-heading">
+          <h2 id="routing-heading" class="panel-title">Source Routing</h2>
+          <p class="panel-copy">Select a chat and user, or load a JSON snapshot manually.</p>
+
+          <div class="field">
+            <label for="chatSelect" class="field-label">Chat Source</label>
+            <select id="chatSelect" aria-describedby="sourceHint">
+              <option value="">No source detected</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="userSelect" class="field-label">User Profile</label>
+            <select id="userSelect" disabled>
+              <option value="">Choose chat first</option>
+            </select>
+          </div>
+
+          <button id="loadBtn" class="btn btn--primary" type="button" disabled>
+            Load Snapshot
+          </button>
+
+          <p id="sourceHint" class="hint">
+            Run <code>user-snapshot</code> to generate exports, then refresh.
+          </p>
+
+          <div class="sidebar-mini-stats" aria-label="Source summary">
+            <div class="mini-stat">
+              <span class="mini-stat__label">Users in chat</span>
+              <strong id="chatUsersCount" class="mini-stat__value">—</strong>
+            </div>
+            <div class="mini-stat">
+              <span class="mini-stat__label">Best activity</span>
+              <strong id="bestActivity" class="mini-stat__value">—</strong>
+            </div>
+          </div>
+        </section>
+
+        <!-- Persona quick card -->
+        <section class="panel sidebar-persona" id="sidebarPersona" aria-labelledby="persona-heading" hidden>
+          <h2 id="persona-heading" class="panel-title">Persona</h2>
+          <div class="persona-score-row">
+            <svg class="score-ring" id="scoreRingSvg" viewBox="0 0 64 64" aria-hidden="true">
+              <circle class="score-ring__track" cx="32" cy="32" r="26"/>
+              <circle class="score-ring__fill" id="scoreRingFill" cx="32" cy="32" r="26"/>
+              <text class="score-ring__text" id="scoreRingText" x="32" y="37" text-anchor="middle">0</text>
+            </svg>
+            <div class="persona-meta">
+              <span class="persona-role" id="personaRole">—</span>
+              <span class="persona-tone" id="personaTone">—</span>
+              <span class="persona-confidence" id="personaConf">conf: —</span>
+            </div>
+          </div>
+          <div class="persona-traits" id="personaTraits"></div>
+          <div class="persona-section">
+            <span class="persona-section__label">Interests</span>
+            <div class="interest-chips" id="personaInterests"></div>
+          </div>
+          <div class="persona-section" id="personaTriggersSection">
+            <span class="persona-section__label">Triggers</span>
+            <div class="interest-chips" id="personaTriggers"></div>
+          </div>
+          <div class="persona-phrases" id="personaPhrases"></div>
+        </section>
+
+      </aside>
+
+      <!-- ─── MAIN CONTENT ─── -->
+      <main class="main-stack" id="mainStack">
+
+        <!-- Hero -->
+        <section class="panel hero-panel" id="heroPanel" aria-labelledby="heroName">
+          <p class="eyebrow" id="heroEyebrow">Operator Card</p>
+          <h1 id="heroName" class="hero-name">No profile loaded</h1>
+          <p id="heroMeta" class="hero-meta">Select a source and load a user snapshot.</p>
+          <p id="heroSummary" class="hero-summary">The dashboard renders stats, persona traits, social graph edges, and recent message flow.</p>
+          <div id="heroBadges" class="badge-row" role="list" aria-label="Profile badges"></div>
+        </section>
+
+        <!-- KPI Grid — primary -->
+        <section class="kpi-section" aria-labelledby="kpi-heading">
+          <h2 id="kpi-heading" class="section-title">Key Metrics</h2>
+          <div class="kpi-grid" id="kpiGrid"></div>
+        </section>
+
+        <!-- Behavior Stats -->
+        <section class="kpi-section" aria-labelledby="behavior-heading">
+          <h2 id="behavior-heading" class="section-title">Behavior Signals</h2>
+          <div class="kpi-grid kpi-grid--compact" id="behaviorGrid"></div>
+        </section>
+
+        <!-- Charts -->
+        <section class="charts-section" aria-label="Activity charts">
+          <div class="chart-row chart-row--3">
+            <article class="panel chart-panel" aria-labelledby="hourly-heading">
+              <div class="panel-head">
+                <h3 id="hourly-heading">Hourly Load</h3>
+                <span class="mono-tag" id="hourPeak" aria-live="polite">n/a</span>
+              </div>
+              <div id="hourChart" class="bar-chart" role="img" aria-label="Messages by hour of day"></div>
+            </article>
+
+            <article class="panel chart-panel" aria-labelledby="weekday-heading">
+              <div class="panel-head">
+                <h3 id="weekday-heading">Weekday Cadence</h3>
+                <span class="mono-tag">Sun–Sat</span>
+              </div>
+              <div id="weekdayChart" class="bar-chart" role="img" aria-label="Messages by weekday"></div>
+            </article>
+
+            <article class="panel chart-panel" aria-labelledby="monthly-heading">
+              <div class="panel-head">
+                <h3 id="monthly-heading">Monthly Volume</h3>
+                <span class="mono-tag">Jan–Dec</span>
+              </div>
+              <div id="monthChart" class="bar-chart" role="img" aria-label="Messages by month"></div>
+            </article>
+          </div>
+
+          <article class="panel chart-panel trend-panel" aria-labelledby="trend-heading">
+            <div class="panel-head">
+              <h3 id="trend-heading">Daily Momentum</h3>
+              <span class="mono-tag" id="dateRangeLabel" aria-live="polite">n/a</span>
+            </div>
+            <svg id="dailyTrend" viewBox="0 0 1000 220" preserveAspectRatio="none" role="img" aria-label="Daily message trend line"></svg>
+          </article>
+        </section>
+
+        <!-- Lexicon -->
+        <section class="lexicon-section" aria-label="Lexicon analysis">
+          <div class="two-col">
+            <article class="panel" aria-labelledby="topwords-heading">
+              <div class="panel-head">
+                <h3 id="topwords-heading">Top Words</h3>
+                <span class="mono-tag">frequency</span>
+              </div>
+              <ul id="topWords" class="word-list" aria-label="Most frequent words"></ul>
+            </article>
+            <article class="panel" aria-labelledby="smartwords-heading">
+              <div class="panel-head">
+                <h3 id="smartwords-heading">Smart Words</h3>
+                <span class="mono-tag">significance</span>
+              </div>
+              <ul id="smartWords" class="word-list" aria-label="Significant words by score"></ul>
+            </article>
+          </div>
+        </section>
+
+        <!-- Social Graph -->
+        <section class="social-section" aria-label="Social graph">
+          <div class="two-col">
+            <article class="panel" aria-labelledby="incoming-heading">
+              <div class="panel-head">
+                <h3 id="incoming-heading">Incoming Relations</h3>
+                <span class="mono-tag" id="incomingCount" aria-live="polite">0</span>
+              </div>
+              <ul id="incomingRelations" class="relation-list" aria-label="Incoming social edges"></ul>
+            </article>
+            <article class="panel" aria-labelledby="outgoing-heading">
+              <div class="panel-head">
+                <h3 id="outgoing-heading">Outgoing Relations</h3>
+                <span class="mono-tag" id="outgoingCount" aria-live="polite">0</span>
+              </div>
+              <ul id="outgoingRelations" class="relation-list" aria-label="Outgoing social edges"></ul>
+            </article>
+          </div>
+        </section>
+
+        <!-- Topics -->
+        <section class="panel topics-panel" id="topicsPanel" aria-labelledby="topics-heading" hidden>
+          <div class="panel-head">
+            <h3 id="topics-heading">Topics</h3>
+            <span class="mono-tag" id="topicsCount">0</span>
+          </div>
+          <div id="topicsList" class="topics-list"></div>
+        </section>
+
+        <!-- Content Signals -->
+        <section class="content-section" id="contentSection" aria-label="Content signals" hidden>
+          <div class="two-col">
+            <article class="panel" aria-labelledby="urls-heading">
+              <div class="panel-head">
+                <h3 id="urls-heading">Shared URLs</h3>
+                <span class="mono-tag" id="urlsCount">0</span>
+              </div>
+              <ul id="urlsList" class="content-list"></ul>
+            </article>
+            <article class="panel" aria-labelledby="mentions-heading">
+              <div class="panel-head">
+                <h3 id="mentions-heading">User Mentions</h3>
+                <span class="mono-tag" id="mentionsCount">0</span>
+              </div>
+              <ul id="mentionsList" class="content-list"></ul>
+            </article>
+          </div>
+        </section>
+
+        <!-- Messages Feed -->
+        <section class="panel messages-panel" aria-labelledby="messages-heading">
+          <div class="messages-toolbar">
+            <h3 id="messages-heading">Recent Messages</h3>
+            <div class="messages-controls">
+              <div class="search-wrap">
+                <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                <input
+                  id="messageFilter"
+                  type="search"
+                  placeholder="Search messages… ( / )"
+                  autocomplete="off"
+                  aria-label="Filter messages"
+                  aria-controls="messageFeed"
+                  aria-describedby="messageCount"
+                />
+                <button id="clearSearch" class="clear-search-btn" type="button" aria-label="Clear search" hidden>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+              </div>
+              <span class="mono-tag" id="messageCount" aria-live="polite">0 messages</span>
+            </div>
+          </div>
+          <ul id="messageFeed" class="message-feed" role="feed" aria-label="Message feed" aria-live="polite"></ul>
+          <div id="feedSentinel" class="feed-sentinel" aria-hidden="true"></div>
+          <button id="scrollTopBtn" class="scroll-top-btn" type="button" aria-label="Scroll to top" hidden>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m18 15-6-6-6 6"/></svg>
+          </button>
+        </section>
+
+      </main>
+    </div><!-- /shell -->
+
+    <!-- Templates -->
+    <template id="emptyTemplate">
+      <li class="empty-state">
+        <span class="empty-state__text">No data loaded yet.</span>
+      </li>
+    </template>
+
+    <template id="msgTemplate">
+      <li class="message-item">
+        <div class="message-header">
+          <span class="message-author"></span>
+          <div class="message-right">
+            <span class="message-type-badge" hidden></span>
+            <time class="message-time"></time>
+          </div>
+        </div>
+        <p class="message-body"></p>
+        <div class="message-footer" hidden>
+          <span class="message-reply-hint" hidden></span>
+          <span class="message-toxicity" hidden></span>
+        </div>
+      </li>
+    </template>
+
+    <script src="/app.js"></script>
+  </body>
+</html>
